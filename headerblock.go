@@ -4,6 +4,7 @@ package headerblock
 import (
 	"context"
 	"log"
+	"net"
 	"net/http"
 	"regexp"
 )
@@ -12,6 +13,7 @@ import (
 type Config struct {
 	RequestHeaders          []HeaderConfig `json:"requestHeaders,omitempty"`
 	WhitelistRequestHeaders []HeaderConfig `json:"whitelistRequestHeaders,omitempty"`
+	AllowedIPs              []string       `json:"allowedIPs,omitempty"`
 	Log                     bool           `json:"log,omitempty"`
 }
 
@@ -38,15 +40,40 @@ type headerBlock struct {
 	next                  http.Handler
 	requestHeaderRules    []rule
 	whitelistRequestRules []rule
+	allowedIPNets         []*net.IPNet
 	log                   bool
 }
 
 // New creates a new headerBlock plugin.
 func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
+	ipNets := make([]*net.IPNet, 0)
+
+	for _, ip := range config.AllowedIPs {
+		if _, netCIDR, err := net.ParseCIDR(ip); err == nil {
+			ipNets = append(ipNets, netCIDR)
+			continue
+		}
+
+		parsedIP := net.ParseIP(ip)
+		if parsedIP != nil {
+			var bits int
+			if parsedIP.To4() != nil {
+				bits = 32
+			} else {
+				bits = 128
+			}
+			ipNets = append(ipNets, &net.IPNet{
+				IP:   parsedIP,
+				Mask: net.CIDRMask(bits, bits),
+			})
+		}
+	}
+
 	return &headerBlock{
 		next:                  next,
 		requestHeaderRules:    prepareRules(config.RequestHeaders),
 		whitelistRequestRules: prepareRules(config.WhitelistRequestHeaders),
+		allowedIPNets:         ipNets,
 		log:                   config.Log,
 	}, nil
 }
@@ -67,6 +94,30 @@ func prepareRules(headerConfig []HeaderConfig) []rule {
 }
 
 func (c *headerBlock) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	if len(c.allowedIPNets) > 0 {
+		host, _, err := net.SplitHostPort(req.RemoteAddr)
+		if err != nil {
+			host = req.RemoteAddr
+		}
+
+		clientIP := net.ParseIP(host)
+		allowed := false
+
+		for _, net := range c.allowedIPNets {
+			if net.Contains(clientIP) {
+				allowed = true
+				break
+			}
+		}
+
+		if !allowed {
+			if c.log {
+				log.Printf("%s: access denied - IP not allowed: %s", req.URL.String(), clientIP)
+			}
+			rw.WriteHeader(http.StatusForbidden)
+			return
+		}
+	}
 	// Check whitelist rules only if they are defined
 	if len(c.whitelistRequestRules) > 0 {
 		for name, values := range req.Header {
