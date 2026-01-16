@@ -13,15 +13,15 @@ pilot:
 experimental:
   plugins:
     headerblock:
-      moduleName: "github.com/nhomchatgpt/headerblock"
-      version: "v0.0.3"
+      moduleName: "github.com/PRIHLOP/headerblock-plus"
+      version: "v0.0.6"
 ```
 
 ### Docker-Compose
 
 ```yaml
-      - "--experimental.plugins.headerblock.modulename=github.com/nhomchatgpt/headerblock"
-      - "--experimental.plugins.headerblock.version=v0.0.3"
+      - "--experimental.plugins.headerblock.modulename=github.com/PRIHLOP/headerblock-plus"
+      - "--experimental.plugins.headerblock.version=v0.0.6"
 ```
 
 ### Dynamic
@@ -35,6 +35,9 @@ http:
           requestHeaders:
             - name: "name"
               value: "value"
+          whitelistRequestHeaders:
+            - name: "Cf-Ipcountry"
+              value: "VN"
 ```
 
 ### Example headerblock.yaml
@@ -56,6 +59,9 @@ http:
               value: "Applebot"
             - name: "User-Agent"
               value: "AhrefsBot"
+          whitelistRequestHeaders:
+            - name: "Cf-Ipcountry"
+              value: "VN"
 ```
 
 ### Example docker-compose.yml
@@ -65,7 +71,6 @@ http:
       - "--entrypoints.web.address=:80"
       - "--entrypoints.web-secure.address=:443"
       - "--entrypoints.web-secure.http.middlewares=headerblock@file${TRAEFIK_PLUGINS:-}"
-      - "--experimental.plugins.headerblock.modulename=github.com/nhomchatgpt/headerblock"
-      - "--experimental.plugins.headerblock.version=v0.0.3"
+      - "--experimental.plugins.headerblock.modulename=github.com/PRIHLOP/headerblock-plus"
+      - "--experimental.plugins.headerblock.version=v0.0.6"
 ```
-

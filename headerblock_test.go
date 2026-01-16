@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	tbua "github.com/nhomchatgpt/headerblock"
+	tbua "github.com/PRIHLOP/headerblock-plus"
 )
 
 const pluginName = "headerBlock"
