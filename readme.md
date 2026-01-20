@@ -13,14 +13,14 @@ pilot:
 experimental:
   plugins:
     headerblock:
-      moduleName: "github.com/PRIHLOP/headerblock-plus"
+      moduleName: "github.com/PRIHLOP/headerblock"
       version: "v0.0.6"
 ```
 
 ### Docker-Compose
 
 ```yaml
-      - "--experimental.plugins.headerblock.modulename=github.com/PRIHLOP/headerblock-plus"
+      - "--experimental.plugins.headerblock.modulename=github.com/PRIHLOP/headerblock"
       - "--experimental.plugins.headerblock.version=v0.0.6"
 ```
 
@@ -71,6 +71,6 @@ http:
       - "--entrypoints.web.address=:80"
       - "--entrypoints.web-secure.address=:443"
       - "--entrypoints.web-secure.http.middlewares=headerblock@file${TRAEFIK_PLUGINS:-}"
-      - "--experimental.plugins.headerblock.modulename=github.com/PRIHLOP/headerblock-plus"
+      - "--experimental.plugins.headerblock.modulename=github.com/PRIHLOP/headerblock"
       - "--experimental.plugins.headerblock.version=v0.0.6"
 ```

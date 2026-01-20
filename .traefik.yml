@@ -1,9 +1,13 @@
 displayName: Header Block Plus
 type: middleware
-import: github.com/PRIHLOP/headerblock-plus
-summary: Header Block is a plugin to block request by headers which regex matched by their name and/or value
+
+import: github.com/PRIHLOP/headerblock
+
+summary: "Header Block is a plugin to block request by headers which regex matched by their name and/or value"
+
 testData:
   log: true
+  AllowedIPs: "127.0.0.1"
   requestHeaders:
     - name: "header"
       value: "value"
