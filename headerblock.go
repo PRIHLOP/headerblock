@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"strings"
 )
 
 // Config the plugin configuration.
@@ -44,30 +45,52 @@ type headerBlock struct {
 	log                   bool
 }
 
-// New creates a new headerBlock plugin.
-func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
-	ipNets := make([]*net.IPNet, 0)
+func parseAllowedIPs(raw []string, logEnabled bool) []*net.IPNet {
+	var ipNets []*net.IPNet
 
-	for _, ip := range config.AllowedIPs {
-		if _, netCIDR, err := net.ParseCIDR(ip); err == nil {
-			ipNets = append(ipNets, netCIDR)
-			continue
-		}
+	for _, entry := range raw {
+		// Split by comma to support "1.1.1.1/32, 2.2.2.2/32"
+		parts := strings.Split(entry, ",")
 
-		parsedIP := net.ParseIP(ip)
-		if parsedIP != nil {
-			var bits int
-			if parsedIP.To4() != nil {
-				bits = 32
-			} else {
-				bits = 128
+		for _, part := range parts {
+			ip := strings.TrimSpace(part)
+			if ip == "" {
+				continue
 			}
-			ipNets = append(ipNets, &net.IPNet{
-				IP:   parsedIP,
-				Mask: net.CIDRMask(bits, bits),
-			})
+
+			// Try CIDR first
+			if _, netCIDR, err := net.ParseCIDR(ip); err == nil {
+				ipNets = append(ipNets, netCIDR)
+				continue
+			}
+
+			// Try single IP
+			parsedIP := net.ParseIP(ip)
+			if parsedIP != nil {
+				bits := 128
+				if parsedIP.To4() != nil {
+					bits = 32
+				}
+				ipNets = append(ipNets, &net.IPNet{
+					IP:   parsedIP,
+					Mask: net.CIDRMask(bits, bits),
+				})
+				continue
+			}
+
+			// Fault-tolerant: log and skip
+			if logEnabled {
+				log.Printf("headerblock: invalid allowedIP entry skipped: %q", ip)
+			}
 		}
 	}
+
+	return ipNets
+}
+
+// New creates a new headerBlock plugin.
+func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
+	ipNets := parseAllowedIPs(config.AllowedIPs, config.Log)
 
 	return &headerBlock{
 		next:                  next,
