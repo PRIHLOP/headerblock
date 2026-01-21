@@ -93,7 +93,27 @@ func prepareRules(headerConfig []HeaderConfig) []rule {
 	return headerRules
 }
 
+func isWhitelisted(name string, values []string, whitelist []rule) bool {
+	for _, rule := range whitelist {
+		if rule.name != nil && !rule.name.MatchString(name) {
+			continue
+		}
+
+		if rule.value == nil {
+			return true
+		}
+
+		for _, value := range values {
+			if rule.value.MatchString(value) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (c *headerBlock) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	// IP allowlist logic
 	if len(c.allowedIPNets) > 0 {
 		host, _, err := net.SplitHostPort(req.RemoteAddr)
 		if err != nil {
@@ -118,35 +138,22 @@ func (c *headerBlock) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			return
 		}
 	}
-	// Check whitelist rules only if they are defined
-	if len(c.whitelistRequestRules) > 0 {
-		for name, values := range req.Header {
-			for _, rule := range c.whitelistRequestRules {
-				if applyRule(rule, name, values) {
-					if c.log {
-						log.Printf("%s: access allowed - whitelisted header: %s", req.URL.String(), name)
-					}
-					c.next.ServeHTTP(rw, req)
-					return
-				}
-			}
-		}
 
-		// If no whitelist rules match, block the request
-		if c.log {
-			log.Printf("%s: access denied - no matching whitelist headers", req.URL.String())
-		}
-		rw.WriteHeader(http.StatusForbidden)
-		return
-	}
-
-	// Apply blocklist rules
+	// Header-based enforcement
 	for name, values := range req.Header {
-		for _, rule := range c.requestHeaderRules {
-			if applyRule(rule, name, values) {
-				// Block the request if a blocking rule matches
+		for _, blockRule := range c.requestHeaderRules {
+			if applyRule(blockRule, name, values) {
+
+				// header is blocked → check whitelist for THIS header/value
+				if isWhitelisted(name, values, c.whitelistRequestRules) {
+					if c.log {
+						log.Printf("%s: access allowed - whitelisted header %s", req.URL.String(), name)
+					}
+					continue
+				}
+
 				if c.log {
-					log.Printf("%s: access denied - blocked header: %s", req.URL.String(), name)
+					log.Printf("%s: access denied - blocked header %s", req.URL.String(), name)
 				}
 				rw.WriteHeader(http.StatusForbidden)
 				return
@@ -154,10 +161,6 @@ func (c *headerBlock) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	// Allow the request if no rules match
-	if c.log {
-		log.Printf("%s: access allowed - no rules matched", req.URL.String())
-	}
 	c.next.ServeHTTP(rw, req)
 }
 
